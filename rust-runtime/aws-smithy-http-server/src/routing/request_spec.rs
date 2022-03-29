@@ -6,8 +6,6 @@
 use http::Request;
 use regex::Regex;
 
-use crate::protocols::Protocol;
-
 #[derive(Debug, Clone)]
 pub enum PathSegment {
     Literal(String),
@@ -126,9 +124,6 @@ pub trait RequestSpec {
     fn rank(&self) -> usize {
         0
     }
-
-    /// What protocol this request specification supports?
-    fn protocol(&self) -> Protocol;
 }
 
 /// Request specification for AwsJson 1.0 and 1.1.
@@ -136,16 +131,12 @@ pub trait RequestSpec {
 #[derive(Debug, Clone)]
 pub struct AwsJsonRequestSpec {
     x_amzn_target: String,
-    protocol: Protocol,
 }
 
 impl AwsJsonRequestSpec {
     /// Create a new [`AwsJsonRequestSpec`]
-    pub fn new(x_amzn_target: String, protocol: Protocol) -> Self {
-        Self {
-            x_amzn_target,
-            protocol,
-        }
+    pub fn new(x_amzn_target: String) -> Self {
+        Self { x_amzn_target }
     }
 }
 
@@ -174,10 +165,6 @@ impl RequestSpec for AwsJsonRequestSpec {
 
         Match::No
     }
-
-    fn protocol(&self) -> Protocol {
-        self.protocol
-    }
 }
 
 /// Request specification for REST protocols like RestJson1 and RestXml.
@@ -186,17 +173,15 @@ pub struct RestRequestSpec {
     method: http::Method,
     uri_spec: UriSpec,
     uri_path_regex: Regex,
-    protocol: Protocol,
 }
 
 impl RestRequestSpec {
-    pub fn new(method: http::Method, uri_spec: UriSpec, protocol: Protocol) -> Self {
+    pub fn new(method: http::Method, uri_spec: UriSpec) -> Self {
         let uri_path_regex = (&uri_spec.path_and_query.path_segments).into();
         RestRequestSpec {
             method,
             uri_spec,
             uri_path_regex,
-            protocol,
         }
     }
 
@@ -206,7 +191,6 @@ impl RestRequestSpec {
         method: http::Method,
         path_segments: Vec<PathSegment>,
         query_segments: Vec<QuerySegment>,
-        protocol: Protocol,
     ) -> Self {
         Self::new(
             method,
@@ -217,7 +201,6 @@ impl RestRequestSpec {
                     query_segments: QuerySpec::from_vector_unchecked(query_segments),
                 },
             },
-            protocol,
         )
     }
 }
@@ -316,10 +299,6 @@ impl RequestSpec for RestRequestSpec {
     fn rank(&self) -> usize {
         self.uri_spec.path_and_query.path_segments.0.len() + self.uri_spec.path_and_query.query_segments.0.len()
     }
-
-    fn protocol(&self) -> Protocol {
-        self.protocol
-    }
 }
 
 #[cfg(test)]
@@ -367,7 +346,6 @@ mod tests {
                 PathSegment::Literal(String::from("z")),
             ],
             Vec::new(),
-            Protocol::RestJson1,
         );
 
         let hits = vec![
@@ -383,12 +361,8 @@ mod tests {
 
     #[test]
     fn rest_repeated_query_keys() {
-        let spec = RestRequestSpec::from_parts(
-            Method::DELETE,
-            Vec::new(),
-            vec![QuerySegment::Key(String::from("foo"))],
-            Protocol::RestJson1,
-        );
+        let spec =
+            RestRequestSpec::from_parts(Method::DELETE, Vec::new(), vec![QuerySegment::Key(String::from("foo"))]);
 
         let hits = vec![
             (Method::DELETE, "/?foo=bar&foo=bar"),
@@ -405,7 +379,6 @@ mod tests {
             Method::DELETE,
             Vec::new(),
             vec![QuerySegment::KeyValue(String::from("foo"), String::from("bar"))],
-            Protocol::RestJson1,
         )
     }
 
@@ -433,7 +406,6 @@ mod tests {
                 PathSegment::Literal(String::from("b")),
             ],
             Vec::new(),
-            Protocol::RestJson1,
         )
     }
 
@@ -461,7 +433,6 @@ mod tests {
                 PathSegment::Literal(String::from("b")),
             ],
             Vec::new(),
-            Protocol::RestJson1,
         );
 
         let hits = vec![
@@ -485,7 +456,6 @@ mod tests {
                 PathSegment::Literal(String::from("suffix")),
             ],
             Vec::new(),
-            Protocol::RestJson1,
         );
 
         let hits = vec![
@@ -519,7 +489,6 @@ mod tests {
             Method::GET,
             vec![PathSegment::Literal(String::from("a")), PathSegment::Label],
             Vec::new(),
-            Protocol::RestJson1,
         );
 
         let misses = vec![(Method::GET, "/a"), (Method::GET, "/a//"), (Method::GET, "/a///")];
@@ -535,7 +504,7 @@ mod tests {
     }
 
     fn aws_json_spec() -> AwsJsonRequestSpec {
-        AwsJsonRequestSpec::new(String::from("Service.operation"), Protocol::AwsJson10)
+        AwsJsonRequestSpec::new(String::from("Service.operation"))
     }
 
     #[test]
