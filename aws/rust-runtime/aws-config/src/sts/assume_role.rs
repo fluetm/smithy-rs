@@ -73,6 +73,7 @@ pub struct AssumeRoleProviderBuilder {
     role_arn: String,
     external_id: Option<String>,
     session_name: Option<String>,
+    policy: Option<String>,
     region: Option<Region>,
     conf: Option<ProviderConfig>,
     session_length: Option<Duration>,
@@ -91,6 +92,7 @@ impl AssumeRoleProviderBuilder {
             role_arn: role.into(),
             external_id: None,
             session_name: None,
+            policy: None,
             session_length: None,
             region: None,
             conf: None,
@@ -115,6 +117,14 @@ impl AssumeRoleProviderBuilder {
     /// name is also used in the ARN of the assumed role principal.
     pub fn session_name(mut self, name: impl Into<String>) -> Self {
         self.session_name = Some(name.into());
+        self
+    }
+
+    /// Set an inline policy for the assumed role session.
+    ///
+    /// Allows role permissions to be scaled down for the session.
+    pub fn policy(mut self, policy: impl Into<String>) -> Self {
+        self.policy = Some(policy.into());
         self
     }
 
@@ -188,6 +198,7 @@ impl AssumeRoleProviderBuilder {
             .set_role_arn(Some(self.role_arn))
             .set_external_id(self.external_id)
             .set_role_session_name(Some(session_name))
+            .set_policy(self.policy)
             .set_duration_seconds(self.session_length.map(|dur| dur.as_secs() as i32))
             .build()
             .expect("operation is valid");
@@ -292,6 +303,7 @@ mod test {
         let provider = AssumeRoleProvider::builder("myrole")
             .configure(&provider_conf)
             .region(Region::new("us-east-1"))
+            .policy("policy")
             .session_length(Duration::from_secs(1234567))
             .build(SharedCredentialsProvider::new(Credentials::new(
                 "base",
@@ -320,6 +332,7 @@ mod test {
         let provider = AssumeRoleProvider::builder("myrole")
             .configure(&provider_conf)
             .region(Region::new("us-east-1"))
+            .policy("policy")
             .build(SharedCredentialsProvider::new(Credentials::new(
                 "base",
                 "basesecret",
